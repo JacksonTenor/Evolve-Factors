@@ -511,8 +511,53 @@
   [n]
   (count (get-factors n)))
 
-(defn factors-error
-  [expected, actual]
+(defn factors-error-ind
+  [expected actual]
   (if (or (nil? actual) (= :no-stack-item actual))
-    -100
-    (* -1 (abs (- actual expected)))))
+    100
+    (abs (- actual expected))))
+
+(defn factors-error-simple
+  [expected, actual]
+  (map factors-error-ind expected actual))
+
+(def factors-inputs(range 1 101))
+(def factors-outputs
+  (map num-factors factors-inputs))
+
+(defn factors-error
+  [argmap individual]
+  (let [program (push-from-plushy (:plushy individual))
+        inputs factors-inputs
+        correct-outputs factors-outputs
+        outputs (map (fn [input]
+                       (peek-stack
+                        (interpret-program
+                         program
+                         (assoc empty-push-state :input {:in1 input})
+                         (:step-limit argmap))
+                        :integer))
+                     inputs)
+        errors (map factors-error-ind
+                    correct-outputs
+                    outputs)]
+    (assoc individual
+           :behaviors outputs
+           :errors errors
+           :total-error (apply +' errors))))
+
+(defn evolve-factors
+  [& args]
+  (binding [*ns* (the-ns 'propel.core)]
+    (propel-gp (update-in (merge {:instructions default-instructions
+                                  :error-function factors-error
+                                  :max-generations 500
+                                  :population-size 200
+                                  :max-initial-plushy-size 50
+                                  :step-limit 100
+                                  :parent-selection :lexicase
+                                  :tournament-size 5}
+                                 (apply hash-map
+                                        (map read-string args)))
+                          [:error-function]
+                          #(if (fn? %) % (eval %))))))
