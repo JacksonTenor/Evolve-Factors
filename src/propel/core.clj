@@ -501,3 +501,18 @@
                           [:error-function]
                           #(if (fn? %) % (eval %))))))
 
+;;;;Number of Factors
+;;
+(defn get-factors
+  [n]
+  (filter #(zero? (rem n %)) (range 1 (inc n))))
+
+(defn num-factors
+  [n]
+  (count (get-factors n)))
+
+(defn factors-error
+  [expected, actual]
+  (if (or (nil? actual) (= :no-stack-item actual))
+    -100
+    (* -1 (abs (- actual expected)))))
