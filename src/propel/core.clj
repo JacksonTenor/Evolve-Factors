@@ -18,30 +18,34 @@
    'integer_*
    'integer_%
    'integer_=
+   'integer_mod 
    'exec_dup
    'exec_if
+   'exec_for
+   'int_to_control
    'boolean_and
    'boolean_or
    'boolean_not
    'boolean_=
-   'string_=
-   'string_take
-   'string_drop
-   'string_reverse
-   'string_concat
-   'string_length
-   'string_includes?
+   ;'string_=
+   ;'string_take
+   ;'string_drop
+   ;'string_reverse
+   ;'string_concat
+   ;'string_length
+   ;'string_includes?
    'close
    0
    1
    true
    false
-   ""
-   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-   "A"
-   "C"
-   "G"
-   "T"))
+   ;""
+   ;"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+   ;"A"
+   ;"C"
+   ;"G"
+   ;"T"
+   ))
 
 (def opens ; number of blocks opened by instructions (default = 0)
   {'exec_dup 1
@@ -53,9 +57,18 @@
 (def empty-push-state
   {:exec '()
    :integer '()
-   :string '()
    :boolean '()
+   :control '()
    :input {}})
+
+
+(def near-empty-push-state
+  {:exec '()
+   :integer '(3)
+   :boolean '()
+   :control '()
+   :input {}})
+
 
 (defn abs
   "Absolute value."
@@ -158,11 +171,44 @@
   [state]
   (make-push-instruction state = [:integer :integer] :boolean))
 
+(defn integer_mod
+  [state]
+  (make-push-instruction
+   state
+   (fn [num den]
+     (if (zero? den)
+       1
+       (mod num den)))
+   [:integer :integer]
+   :integer))
+
 (defn exec_dup
   [state]
   (if (empty-stack? state :exec)
     state
     (push-to-stack state :exec (first (:exec state)))))
+
+(defn exec_for
+  [state]
+  (if
+   (or (empty-stack? state :control) (empty-stack? state :exec))
+    state
+    (let [loop_state (get-args-from-stacks state [:exec])
+          loop_code (:args loop_state)
+          iteration_state (get-args-from-stacks (:state loop_state) [:control])
+          iterations (first (:args iteration_state))
+          new_state (push-to-stack (push-to-stack (:state iteration_state) :exec 'exec_for) :exec loop_code)]
+
+      (if (>= iterations 1) (push-to-stack new_state :control (- iterations 1)) new_state))))
+
+
+(defn int_to_control
+  [state]
+  (make-push-instruction state
+                         identity
+                         [:integer]
+                         :control)
+  )
 
 (defn exec_if
   [state]
@@ -521,7 +567,7 @@
   [expected, actual]
   (map factors-error-ind expected actual))
 
-(def factors-inputs(range 1 101))
+(def factors-inputs(range 1 51))
 (def factors-outputs
   (map num-factors factors-inputs))
 
@@ -551,10 +597,10 @@
   (binding [*ns* (the-ns 'propel.core)]
     (propel-gp (update-in (merge {:instructions default-instructions
                                   :error-function factors-error
-                                  :max-generations 500
-                                  :population-size 200
+                                  :max-generations 500000
+                                  :population-size 1000
                                   :max-initial-plushy-size 50
-                                  :step-limit 100
+                                  :step-limit 500
                                   :parent-selection :lexicase
                                   :tournament-size 5}
                                  (apply hash-map
